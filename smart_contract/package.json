@@ -1,0 +1,19 @@
+{
+  "name": "DCMSmartContract",
+  "version": "1.0.0",
+  "description": "Smart contract for dcm",
+  "author": "Roman",
+  "license": "ISC",
+  "scripts": {
+    "build:deploy": "massa-sc-scripts build-sc src/smart-contract.ts && massa-sc-scripts build-sc src/deploy.ts",
+    "build:play": "massa-sc-scripts build-sc src/play.ts",
+    "clean": "massa-sc-scripts clean"
+  },
+  "dependencies": {
+    "assemblyscript": "^0.19.23",
+    "json-as": "^0.2.6",
+    "massa-sc-scripts": "4.0.1",
+    "massa-sc-std": "4.0.1",
+    "visitor-as": "^0.8.0"
+  }
+}
