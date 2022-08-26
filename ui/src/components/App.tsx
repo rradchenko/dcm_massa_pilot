@@ -17,20 +17,14 @@ import {
   EOperationStatus,
 } from "@massalabs/massa-web3";
 import { v4 as uuidv4 } from 'uuid';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import Switch from '@mui/material/Switch';
-import Select, { SelectChangeEvent } from '@mui/material/Select';
-import FormHelperText from '@mui/material/FormHelperText';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import logo from './images/dcm-logo-short.svg';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import logo from '../images/dcm-logo-short.svg';
+import AddArticle from "./AddArticle";
+import ListOfArticles from "./ListOfArticles";
 
 const baseAccount = {
   privateKey: "2cr6PaYfzw8EAW7B4BzFMQfQSmTGooHMZxaVrxDbiaiThi4ADL",
@@ -65,6 +59,7 @@ let web3Client: TClient;
 
 let sc_addr = "A12aLE9N79i2uznhsfjx4FUjkoHyLxJfiwE9Fz3h2maGt1Q3jDs1";
 let interval: string | number | NodeJS.Timer | undefined;
+let title = "";
 
 const App = () => {
 
@@ -76,14 +71,24 @@ const App = () => {
     locale: "en",
     body: "",
   });
+  const [articleData, setArticleData] = useState({
+    id: "",
+    Classification: "article",
+    imageUrl: "",
+    title: "",
+    locale: "en",
+    body: "",
+  });
   const [open, setOpen] = useState<boolean>(false);
+  const [openArticle, setOpenArticle] = useState<boolean>(false);
   const [openInfo, setOpenInfo] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   const [isLoading, setLoading] = useState<boolean>(false);
   const [isEvent, setEvent] = useState<boolean>(false);
-  const [datainfo, setDataInfo] = useState<{ key: string; operationId: string[] }[]>([]);
+  const [datainfo, setDataInfo] = useState<{ key: string; operationId: string[]; title: string; imageUrl: string; }[]>([]);
   const [nodeStatus, setNodeStatus] = useState<TNodeStatus>(null);
   const [progress, setProgress] = useState<number>(0);
+  const [menuNumber, setMenuNumber] = useState<number>(0);
 
   useEffect(() => {
     if (baseAccount.address && baseAccount.privateKey && baseAccount.publicKey) {
@@ -104,6 +109,10 @@ const App = () => {
     setOpen(false);
   };
 
+  const handleCloseArticle = () => {
+    setOpenArticle(false);
+  };
+
   useEffect(() => {
     console.log("Massa Net Version: " + nodeStatus?.version);
     console.log("Massa Net Node Id: " + nodeStatus?.node_ip);
@@ -111,12 +120,13 @@ const App = () => {
     console.log("Massa Net Cycle: " + nodeStatus?.current_cycle);
   }, [nodeStatus]);
 
-  const setDataToSC = async () => {
+  const setDataToSC = async (value: any) => {
     setLoading(true);
     let key = uuidv4();
     let accumulated;
     let modulo;
-    const datavalue = { ...data, id: key };
+    const datavalue = { ...value, id: key };
+
     let chunks = JSON.stringify(datavalue || "").match(/.{900}/g);
 
     if (chunks === null) {
@@ -145,7 +155,7 @@ const App = () => {
     console.log(status);
 
     setDataInfo(prevDataInfo => [
-      ...prevDataInfo, { key: key.toString(), operationId: callSetData }
+      ...prevDataInfo, { key: key.toString(), operationId: callSetData, title: title || "", imageUrl: value.imageUrl }
     ]);
     if (chunks.length > 1) {
       appendDataToSC(chunks, key);
@@ -174,18 +184,15 @@ const App = () => {
         parameter: sc_addr + "|" + key + "|" + JSON.stringify(pieces[i])
       });
 
-      //await timer(12000);
-      
       const status = await web3Client.smartContracts().awaitRequiredOperationStatus(callAppend[0], EOperationStatus.FINAL);
       console.log(status);
-      setProgress((prevProgress) => (i*100/pieces.length));
+      setProgress((prevProgress) => (i * 100 / pieces.length));
 
       if (i === pieces.length - 1) {
         interval = setInterval(() => {
           subscribeEvent(key);
         }, 3000);
       }
-
     }
   }
 
@@ -231,7 +238,22 @@ const App = () => {
   const getData = async (key: string) => {
     try {
       const data: IContractStorageData | null = await web3Client.publicApi().getDatastoreEntry(sc_addr, key);
-      console.log('Data ->', data);
+      //NOTE: Part of the string include brackets, which added by append data (like - string"append-string")
+      //it's not allowed to use JSON.parse, this issue was fixed by list of replaces.
+      let datastring = data.final?.replace(/,"title":/g, "||").replace(/"id":/g, "").replace(/,"Classification":/g, "||").replace(/,"imageUrl":/g, "||").replace(/,"locale":/g, "||").replace(/,"body":/g, "||").replace(/"/g, "");
+
+      const articleD: any = datastring?.split("||");
+      if (articleD.length) {
+        setArticleData({
+          id: articleD.id,
+          Classification: articleD[1].toString(),
+          imageUrl: articleD[2].toString(),
+          title: articleD[3].toString(),
+          locale: articleD[4].toString(),
+          body: articleD[5].toString()
+        });
+      }
+      setOpenArticle(true);
     } catch (err) {
       console.error('Data ->', err);
     }
@@ -298,9 +320,9 @@ const App = () => {
     }
   };
 
-  const handleChange = (event: SelectChangeEvent) => {
-    setData({ ...data, locale: event.target.value });
-  };
+  const viewArticle = (value: { key: string; }) => {
+    getData(value.key);
+  }
 
   return (
     <div id="root">
@@ -319,11 +341,15 @@ const App = () => {
                 </a>
                 <div className="BurgerMenu  TopBar__menu"><div></div></div>
                 <nav>
-                  <a className="active" href="/">My content</a>
-                  <a className="" href="/">Marketplace</a>
-                  <a className="" href="/">Orders</a>
-                  <a className="" href="/">Deals</a>
-                  <a className="" href="/">Bulk operations</a>
+                  <a className={menuNumber === 0 ? "active" : ""} onClick={() => {
+                    setMenuNumber(0);
+                  }}>My content</a>
+                  <a className={menuNumber === 1 ? "active" : ""} onClick={() => {
+                    setMenuNumber(1);
+                  }}>Articles</a>
+                  <a className="">Orders</a>
+                  <a className="">Deals</a>
+                  <a className="">Bulk operations</a>
                 </nav>
                 <a href="/"><button className="ButtonNewUi ButtonNewUi--contained  " type="button">+ Create</button></a>
                 <div className="UserInfo">
@@ -334,159 +360,25 @@ const App = () => {
               </div>
             </header>
             <main>
-              <div className="ContentEditor">
-                <div className="container">
-                  <div className="ContentEditor__left-side">
-                    <div className="ContentSettingsForm">
-                      <div className="TopBar" style={{ backgroundColor: 'transparent' }}>
-                        <nav>
-                          <a className="active" href="/creator/content/">Req. settings</a>
-                          <a className="" href="/creator/marketplace">Optional</a>
-                        </nav>
-                      </div>
-                      <FormControl fullWidth sx={{ minWidth: 120 }}>
-                        <FormHelperText style={{
-                          margin: '10px 10px 10px 0px',
-                          color: 'grey',
-                          fontSize: 14
-                        }}>Primary language</FormHelperText>
-                        <Select
-                          labelId="demo-simple-select-standard-label"
-                          id="demo-simple-select-standard"
-                          value={data?.locale}
-                          onChange={handleChange}
-                          label="Language"
-                        >
-                          <MenuItem value="">
-                            <em>None</em>
-                          </MenuItem>
-                          <MenuItem value="en">English</MenuItem>
-                          <MenuItem value="fr">French</MenuItem>
-                          <MenuItem value="ge">German</MenuItem>
-                          <MenuItem value="sp">Spanish</MenuItem>
-                          <MenuItem value="po">Polish</MenuItem>
-                          <MenuItem value="ru">Russian</MenuItem>
-                          <MenuItem value="ua">Ukrainian</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </div>
-                  </div>
-                  <div className="ContentEditor__main">
-                    <div className="ContentItemsContainer">
-                      <p>Title (H1 text)</p>
-                      <div className="ItemWrapper">
-                        <input value={data.title} onChange={(e) => {
-                          setData({ ...data, title: e.target.value })
-                        }} style={{ width: "100%", borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomWidth: 0.2 }} />
-                      </div>
-                      <p>Preview Image (use url to img)</p>
-                      <div className="ItemWrapper">
-                        <input value={data.imageUrl} onChange={(e) => {
-                          setData({ ...data, imageUrl: e.target.value })
-                        }} style={{ width: "100%", borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, borderBottomWidth: 0.2 }} />
-                      </div>
-                      {data.imageUrl && <img src={data.imageUrl} style={{ width: "100%" }} />}
-                      <p>Main text(p)</p>
-                      <div className="ItemWrapper">
-                        <textarea value={data.body} onChange={(e) => {
-                          setData({ ...data, body: e.target.value })
-                        }} style={{ width: "100%", borderWidth: 0.2, height: 250 }} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="ContentEditor__right-side">
-                    <div style={{ flexDirection: 'row', display: 'flex', justifyContent: 'space-between', padding: 10 }}>
-                      <p>Check AI Warnings</p>
-                      <p style={{ marginRight: 25 }}>{'>'}</p>
-                    </div>
-                    <div className="ContentSettingsForm">
-                      <div style={{
-                        flexDirection: 'row', display: 'flex', justifyContent: 'space-between', borderStyle: 'solid',
-                        borderTopWidth: 0.2,
-                        borderBottomWidth: 0,
-                        borderLeftWidth: 0,
-                        borderRightWidth: 0,
-                        borderColor: '#d5d5d5',
-                        padding: 10
-                      }}>
-                        <p>NFT Publishing</p>
-                        <Switch />
-                      </div>
-                      <div style={{
-                        flexDirection: 'row', display: 'flex', justifyContent: 'space-between', borderStyle: 'solid',
-                        borderTopWidth: 0.2,
-                        borderBottomWidth: 0,
-                        borderLeftWidth: 0,
-                        borderRightWidth: 0,
-                        borderColor: '#d5d5d5',
-                        padding: 10
-                      }}>
-                        <p>Custom price</p>
-                        <Switch />
-                      </div>
-                      <div style={{
-                        flexDirection: 'row', display: 'flex', justifyContent: 'space-between', borderStyle: 'solid',
-                        borderTopWidth: 0.2,
-                        borderBottomWidth: 0,
-                        borderLeftWidth: 0,
-                        borderRightWidth: 0,
-                        borderColor: '#d5d5d5',
-                        padding: 10
-                      }}>
-                        <p>Add Options</p>
-                        <Switch />
-                      </div>
-                      {isEvent && (
-                        <div style={{ textAlign: 'center', borderWidth: 0.2, borderStyle: 'solid', borderTopRightRadius: 15, borderTopLeftRadius: 15, backgroundColor: '#e0fbe0', borderColor: '#e0fbe0' }}>
-                          <p style={{ color: 'green' }}>Ready to publish</p>
-                        </div>
-                      )}
-                      {isEvent && (
-                        <div className="ContentSettingsForm__btn-wrapper" style={{ textAlign: 'center', padding: 20, borderStyle: 'solid', borderWidth: 0.2, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, borderColor: '#e0fbe0' }}>
-                          {isLoading ?
-                          <Box sx={{ position: 'relative', display: 'inline-flex' }} style={{ marginLeft: 40 }}>
-                          <CircularProgress variant="determinate" value={progress} />
-                          <Box
-                            sx={{
-                              top: 0,
-                              left: 0,
-                              bottom: 0,
-                              right: 0,
-                              position: 'absolute',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <Typography
-                              variant="caption"
-                              component="div"
-                              color="text.secondary"
-                            >{`${Math.round(progress)}%`}</Typography>
-                          </Box>
-                        </Box>
-                             :
-                            <button onClick={setDataToSC} className="MuiButtonBase-root MuiButton-root jss84 MuiButton-contained MuiButton-containedPrimary jss85" type="button">
-                              <span className="MuiButton-label">Publish</span>
-                              <span className="MuiTouchRipple-root"></span>
-                            </button>}
-                          <button className="MuiButtonBase-root MuiButton-root jss84 MuiButton-outlined jss87" type="button">
-                            <span className="MuiButton-label">Save to Draft</span>
-                            <span className="MuiTouchRipple-root"></span>
-                          </button>
-                          <button className="MuiButtonBase-root MuiButton-root jss84 MuiButton-outlined jss87" type="button">
-                            <span className="MuiButton-label">Delete</span>
-                            <span className="MuiTouchRipple-root"></span>
-                          </button>
-                          <div onClick={() => setOpenInfo(true)}>
-                            <p style={{ color: "#5E6C84" }}> Show Info </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {menuNumber === 0 ?
+                <AddArticle
+                  isEvent={isEvent}
+                  progress={progress}
+                  isLoading={isLoading}
+                  publishArticle={(value) => {
+                    setData(value);
+                    title = value.title;
+                    setDataToSC(value);
+                  }}
+                />
+                :
+                <ListOfArticles
+                  datainfo={datainfo}
+                  viewArticle={(value) => {
+                    viewArticle(value);
+                  }}
+                />
+              }
             </main>
           </div>
         </div>
@@ -501,6 +393,21 @@ const App = () => {
           <DialogContentText id="alert-dialog-description">
             {message}
           </DialogContentText>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openArticle}
+        onClose={handleCloseArticle}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogContent>
+          <div>
+            <p>{articleData.title}</p>
+            {articleData.imageUrl && <img src={articleData.imageUrl} style={{ width: "100%" }} />}
+            <p>{articleData.body.substring(0, articleData.body.length - 1)}</p>
+          </div>
         </DialogContent>
       </Dialog>
 
