@@ -18,6 +18,21 @@ function setStorage(name: string, value: string): i32 {
     return 0;
 }
 
+function setListToStorage(name: string, image: string, title: string): i32 {
+    const addresses = Context.addressStack();
+    print("ListOfArticles");
+    print(Storage.has(`ListOfArticles`).toString());
+    if (Storage.has(`ListOfArticles`)) {
+        Storage.appendOf(addresses[1], `ListOfArticles`, name + '|' + image + '|' + title + '||');
+        print("1");
+    } else {
+        Storage.setOf(addresses[1], `ListOfArticles`, name + '|' + image + '|' + title +  '||');
+        print("2");
+    }
+    print("done");
+    return 0;
+}
+
 export function main(_args: string): void {
     const sc_address = createContract();
     print("Created smart-contract!!!");
@@ -30,6 +45,7 @@ export function setData(_args: string): string {
     let args = _args.split("|");
     if (args.length) {
         setStorage(args[1], args[2]);
+        setListToStorage(args[1], args[3], args[4]);
         print('send Data' + args[1]);
         events("sended data" + args[1]);
     }

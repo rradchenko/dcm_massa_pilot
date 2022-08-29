@@ -24,12 +24,13 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import logo from '../images/dcm-logo-short.svg';
 import AddArticle from "./AddArticle";
-import ListOfArticles from "./ListOfArticles";
+//import ListOfArticles from "./ListOfArticles";
+import ListOfArticlesSC from "./ListOfArticlesSC";
 
 const baseAccount = {
-  privateKey: "2cr6PaYfzw8EAW7B4BzFMQfQSmTGooHMZxaVrxDbiaiThi4ADL",
-  publicKey: "czDkh4KSQTD3iin5NfQb9YC2QE1PVo7AHyGe4zRMr6fWF9yHz",
-  address: "A12aLE9N79i2uznhsfjx4FUjkoHyLxJfiwE9Fz3h2maGt1Q3jDs1"
+  privateKey: "4tBnKAsQz1TTKaLdqSGBrh7v6dfi3gWuGbEwPb85LCDpPMUmH",
+  publicKey: "dWoC3GktwpePEESscvnu9S7qRqVLqshoJvSyVcqqC6WyS7dda",
+  address: "A1EBTWz5xsxZfVJpDYSQ8cW627WXAXWouZGQFM4b3Bt8w8oD13u"
 } as IAccount;
 
 type TNodeStatus = INodeStatus | null;
@@ -57,7 +58,7 @@ const web3ClientConfig = {
 
 let web3Client: TClient;
 
-let sc_addr = "A12aLE9N79i2uznhsfjx4FUjkoHyLxJfiwE9Fz3h2maGt1Q3jDs1";
+let sc_addr = "A1EBTWz5xsxZfVJpDYSQ8cW627WXAXWouZGQFM4b3Bt8w8oD13u";
 let interval: string | number | NodeJS.Timer | undefined;
 let title = "";
 
@@ -86,6 +87,7 @@ const App = () => {
   const [isLoading, setLoading] = useState<boolean>(false);
   const [isEvent, setEvent] = useState<boolean>(false);
   const [datainfo, setDataInfo] = useState<{ key: string; operationId: string[]; title: string; imageUrl: string; }[]>([]);
+  const [datainfoSC, setDataInfoSC] = useState<{ key: string; imageUrl: string; title: string }[]>([]);
   const [nodeStatus, setNodeStatus] = useState<TNodeStatus>(null);
   const [progress, setProgress] = useState<number>(0);
   const [menuNumber, setMenuNumber] = useState<number>(0);
@@ -146,7 +148,7 @@ const App = () => {
       sequentialCoins: 0,
       targetAddress: sc_addr,
       functionName: "setData",
-      parameter: sc_addr + "|" + key + "|" + chunks[0]
+      parameter: sc_addr + "|" + key + "|" + chunks[0] + "|" + datavalue.imageUrl + "|" + datavalue.title
     });
 
     setProgress(10);
@@ -218,20 +220,22 @@ const App = () => {
   }
 
   const readData = async (key: string) => {
+    console.log(sc_addr);
     const data: Array<IContractReadOperationData> = await web3Client.smartContracts().readSmartContract({
       fee: 0,
-      maxGas: 200000,
+      maxGas: 100000,
       simulatedGasPrice: 0,
       targetAddress: sc_addr,
       targetFunction: "readData",
-      parameter: sc_addr + "|" + key,
+      parameter: sc_addr + "|" + sc_addr,
       callerAddress: baseAccount.address
     } as IReadData);
 
     if (data[0].result === "Ok") {
+      console.log(data);
       console.log(data[0].output_events[0].data);
     } else {
-      console.log(data[0].result)
+      console.log(data)
     }
   }
 
@@ -258,6 +262,28 @@ const App = () => {
       console.error('Data ->', err);
     }
   }
+
+  const getListArticles = async () => {
+    try {
+      const data: IContractStorageData | null = await web3Client.publicApi().getDatastoreEntry(sc_addr, "ListOfArticles");
+      if (data.final) {
+        let numberArticles = data.final.split("||");
+        numberArticles.pop();
+        let dataArray: { key: string; imageUrl: string; title: string; }[] = [];
+        numberArticles.forEach((item) => {
+          dataArray.push({
+            key: item.split("|")[0],
+            imageUrl: item.split("|")[1],
+            title: item.split("|")[2],
+          })
+        });
+        console.log(dataArray);
+        setDataInfoSC(dataArray);
+      }
+    } catch (err) {
+      console.error('Data ->', err);
+    }
+  } 
 
   const subscribeEvent = async (key: string) => {
     if (!sc_addr) {
@@ -344,8 +370,11 @@ const App = () => {
                   <a className={menuNumber === 0 ? "active" : ""} onClick={() => {
                     setMenuNumber(0);
                   }}>My content</a>
-                  <a className={menuNumber === 1 ? "active" : ""} onClick={() => {
-                    setMenuNumber(1);
+                  <a className={(menuNumber === 1 && isEvent) ? "active" : ""} onClick={() => {
+                    if (isEvent) {
+                      getListArticles();
+                      setMenuNumber(1);
+                    }
                   }}>Articles</a>
                   <a className="">Orders</a>
                   <a className="">Deals</a>
@@ -372,8 +401,14 @@ const App = () => {
                   }}
                 />
                 :
-                <ListOfArticles
+                /* <ListOfArticles
                   datainfo={datainfo}
+                  viewArticle={(value) => {
+                    viewArticle(value);
+                  }}
+                /> */
+                <ListOfArticlesSC
+                  datainfo={datainfoSC}
                   viewArticle={(value) => {
                     viewArticle(value);
                   }}
